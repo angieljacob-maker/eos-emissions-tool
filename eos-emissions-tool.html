@@ -19,7 +19,7 @@
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;overflow:hidden}
-.app{display:grid;grid-template-columns:52px 220px 1fr 300px;grid-template-rows:48px 1fr;height:100vh}
+.app{display:grid;grid-template-columns:52px 220px 1fr 300px;grid-template-rows:48px 1fr;height:100vh;max-height:100vh}
 
 /* Top bar */
 .topbar{grid-column:1/-1;background:var(--bg2);border-bottom:1px solid var(--border2);display:flex;align-items:center;padding:0 1rem;gap:1rem;z-index:10}
@@ -50,9 +50,9 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .eq-sub{font-size:10px;color:var(--text3);font-family:var(--mono)}
 
 /* Canvas */
-.canvas-wrap{position:relative;overflow:hidden;height:100%;background:var(--bg);background-image:radial-gradient(var(--border) 1px,transparent 1px);background-size:24px 24px}
+.canvas-wrap{position:relative;overflow:hidden;height:100%;min-height:400px;background:var(--bg);background-image:radial-gradient(var(--border) 1px,transparent 1px);background-size:24px 24px}
 #pfd-canvas{position:absolute;top:0;left:0;pointer-events:none}
-.canvas-nodes{position:absolute;top:0;left:0;width:100%;height:100%}
+.canvas-nodes{position:absolute;top:0;left:0;width:100%;height:100%;min-width:100%;min-height:100%}
 
 /* Equipment nodes on canvas */
 .eq-node{position:absolute;display:flex;flex-direction:column;align-items:center;cursor:pointer;user-select:none;z-index:2}
@@ -533,15 +533,18 @@ function zoom(factor){
   applyTransform();
 }
 function fitView(){
-  const fac=getActiveFac();if(!fac||!fac.nodes.length){canvasOffset={x:40,y:40};canvasScale=1;applyTransform();return;}
-  const xs=fac.nodes.map(n=>n.x),ys=fac.nodes.map(n=>n.y);
-  const minX=Math.min(...xs),maxX=Math.max(...xs)+100,minY=Math.min(...ys),maxY=Math.max(...ys)+100;
+  const fac=getActiveFac();
   const wrap=document.getElementById('canvas-wrap');
-  const W=wrap.clientWidth,H=wrap.clientHeight;
-  const scaleX=W/(maxX-minX+80),scaleY=H/(maxY-minY+80);
-  canvasScale=Math.min(scaleX,scaleY,1.2);
-  canvasOffset.x=(W-(maxX-minX)*canvasScale)/2-minX*canvasScale;
-  canvasOffset.y=(H-(maxY-minY)*canvasScale)/2-minY*canvasScale;
+  const W=wrap.clientWidth||800, H=wrap.clientHeight||600;
+  if(!fac||!fac.nodes.length){canvasOffset={x:40,y:40};canvasScale=1;applyTransform();return;}
+  const xs=fac.nodes.map(n=>n.x),ys=fac.nodes.map(n=>n.y);
+  const minX=Math.min(...xs),maxX=Math.max(...xs)+120,minY=Math.min(...ys),maxY=Math.max(...ys)+120;
+  const pw=maxX-minX+80, ph=maxY-minY+80;
+  if(pw<=0||ph<=0){canvasOffset={x:40,y:40};canvasScale=1;applyTransform();return;}
+  const scaleX=W/pw, scaleY=H/ph;
+  canvasScale=Math.min(scaleX,scaleY,1.0);
+  canvasOffset.x=(W-pw*canvasScale)/2-minX*canvasScale+40;
+  canvasOffset.y=(H-ph*canvasScale)/2-minY*canvasScale+40;
   applyTransform();
 }
 
@@ -1553,15 +1556,30 @@ function exportReport(){
 
 loadData();
 renderFacSelect();
-document.addEventListener("DOMContentLoaded", function(){
+
+function initApp() {
   renderPFD();
-  setTimeout(fitView, 200);
-});
-if(document.readyState !== "loading"){
-  renderPFD();
-  setTimeout(fitView, 200);
+  // Retry fitView multiple times to handle slow layout
+  setTimeout(function(){ 
+    fitView(); 
+    renderStreamsSVG();
+  }, 100);
+  setTimeout(function(){ 
+    fitView(); 
+    renderStreamsSVG();
+  }, 500);
+  setTimeout(function(){ 
+    fitView(); 
+    renderStreamsSVG();
+  }, 1500);
 }
-window.addEventListener("resize", function(){ renderStreamsSVG(); });
+
+if(document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initApp);
+} else {
+  initApp();
+}
+window.addEventListener('resize', function(){ renderStreamsSVG(); });
 </script>
 </body>
 </html>
