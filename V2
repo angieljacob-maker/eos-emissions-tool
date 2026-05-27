@@ -1,0 +1,1567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EOS Emissions Tool</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0f1117;--bg2:#161820;--bg3:#1e2028;--bg4:#252830;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--border3:rgba(255,255,255,0.2);
+  --text:#e8eaf0;--text2:#9499a8;--text3:#5a5f70;
+  --accent:#4f8ef7;--accent2:#2563c4;
+  --green:#34c97a;--green-bg:rgba(52,201,122,0.1);
+  --amber:#f59e0b;--amber-bg:rgba(245,158,11,0.1);
+  --red:#ef4444;--red-bg:rgba(239,68,68,0.1);
+  --teal:#2dd4bf;--teal-bg:rgba(45,212,191,0.1);
+  --mono:'IBM Plex Mono',monospace;--sans:'IBM Plex Sans',sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;overflow:hidden}
+.app{display:grid;grid-template-columns:52px 220px 1fr 300px;grid-template-rows:48px 1fr;height:100vh}
+
+/* Top bar */
+.topbar{grid-column:1/-1;background:var(--bg2);border-bottom:1px solid var(--border2);display:flex;align-items:center;padding:0 1rem;gap:1rem;z-index:10}
+.app-logo{font-family:var(--mono);font-size:11px;font-weight:500;color:var(--accent);letter-spacing:.1em;text-transform:uppercase;white-space:nowrap}
+.topbar-sep{width:1px;height:20px;background:var(--border2)}
+.fac-select{background:var(--bg3);border:1px solid var(--border2);border-radius:5px;color:var(--text);font-size:12px;padding:4px 10px;font-family:var(--sans)}
+.topbar-btns{display:flex;gap:6px;margin-left:auto}
+.tbtn{background:transparent;border:1px solid var(--border2);border-radius:4px;color:var(--text2);font-size:11px;padding:4px 10px;cursor:pointer;font-family:var(--sans);white-space:nowrap}
+.tbtn:hover{background:var(--bg3);color:var(--text)}
+.tbtn.active{background:var(--accent2);border-color:var(--accent);color:#fff}
+.tbtn.green{background:var(--green-bg);border-color:var(--green);color:var(--green)}
+
+/* Icon rail */
+.iconrail{background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;padding:.5rem 0;gap:2px}
+.rail-btn{width:36px;height:36px;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;color:var(--text3);border:none;background:transparent}
+.rail-btn:hover{background:var(--bg3);color:var(--text)}
+.rail-btn.active{background:rgba(79,142,247,0.15);color:var(--accent)}
+.rail-sep{width:24px;height:1px;background:var(--border);margin:4px 0}
+
+/* Equipment palette */
+.palette{background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column}
+.palette-section{padding:.6rem .75rem .3rem;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;font-family:var(--mono)}
+.eq-item{display:flex;align-items:center;gap:8px;padding:.45rem .75rem;cursor:grab;border-radius:4px;margin:0 4px;user-select:none}
+.eq-item:hover{background:var(--bg3)}
+.eq-item:active{cursor:grabbing}
+.eq-icon{width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;font-size:14px;flex-shrink:0}
+.eq-label{font-size:12px;color:var(--text2)}
+.eq-sub{font-size:10px;color:var(--text3);font-family:var(--mono)}
+
+/* Canvas */
+.canvas-wrap{position:relative;overflow:hidden;height:100%;background:var(--bg);background-image:radial-gradient(var(--border) 1px,transparent 1px);background-size:24px 24px}
+#pfd-canvas{position:absolute;top:0;left:0;pointer-events:none}
+.canvas-nodes{position:absolute;top:0;left:0;width:100%;height:100%}
+
+/* Equipment nodes on canvas */
+.eq-node{position:absolute;display:flex;flex-direction:column;align-items:center;cursor:pointer;user-select:none;z-index:2}
+.eq-node-body{border:1.5px solid var(--border2);border-radius:8px;background:var(--bg2);display:flex;align-items:center;justify-content:center;position:relative;transition:border-color .15s,box-shadow .15s}
+.eq-node:hover .eq-node-body{border-color:var(--border3)}
+.eq-node.selected .eq-node-body{border-color:var(--accent);box-shadow:0 0 0 2px rgba(79,142,247,0.2)}
+.eq-node-label{font-size:10px;font-family:var(--mono);color:var(--text2);margin-top:4px;text-align:center;max-width:80px;line-height:1.3}
+.eq-node-tag{font-size:9px;color:var(--text3);font-family:var(--mono)}
+.port{position:absolute;width:10px;height:10px;border-radius:50%;background:var(--bg3);border:1.5px solid var(--border3);cursor:crosshair;z-index:3;transition:all .15s}
+.port:hover{background:var(--accent);border-color:var(--accent);transform:scale(1.3)}
+.port.inlet{left:-5px;top:50%;transform:translateY(-50%)}
+.port.outlet{right:-5px;top:50%;transform:translateY(-50%)}
+.port.top{top:-5px;left:50%;transform:translateX(-50%)}
+.port.bottom{bottom:-5px;left:50%;transform:translateX(-50%)}
+.port.active-port{background:var(--green);border-color:var(--green);transform:scale(1.4) translateY(-50%)}
+
+/* Properties panel */
+.props{background:var(--bg2);border-left:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column}
+.props-header{padding:1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.props-title{font-size:13px;font-weight:500}
+.props-sub{font-size:11px;color:var(--text3);font-family:var(--mono)}
+.props-body{padding:1rem;flex:1;overflow-y:auto}
+.prop-section{margin-bottom:1.25rem}
+.prop-section-title{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;font-family:var(--mono);margin-bottom:.6rem}
+.prop-row{margin-bottom:.6rem}
+.prop-row label{font-size:11px;color:var(--text2);display:block;margin-bottom:3px;font-family:var(--mono)}
+.prop-row input,.prop-row select,.prop-row textarea{width:100%;padding:5px 8px;font-size:12px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-family:var(--sans)}
+.prop-row input:focus,.prop-row select:focus{outline:none;border-color:var(--accent)}
+.prop-2col{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.prop-btn{width:100%;padding:6px;font-size:12px;border-radius:4px;cursor:pointer;border:1px solid var(--border2);background:transparent;color:var(--text);font-family:var(--sans);margin-bottom:6px}
+.prop-btn:hover{background:var(--bg3)}
+.prop-btn.primary{background:var(--accent2);border-color:var(--accent);color:#fff}
+.prop-btn.primary:hover{background:var(--accent)}
+.prop-btn.danger{background:var(--red-bg);border-color:var(--red);color:var(--red)}
+.no-select-msg{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text3);font-size:12px;text-align:center;padding:2rem;gap:.5rem}
+
+/* Stream table panel */
+.stream-table-wrap{padding:.75rem}
+.stable{width:100%;border-collapse:collapse;font-size:11px}
+.stable th{text-align:left;padding:5px 8px;font-size:9px;font-family:var(--mono);color:var(--text3);border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.05em}
+.stable td{padding:5px 8px;border-bottom:1px solid var(--border);font-family:var(--mono);color:var(--text2)}
+.stable tr:hover td{background:rgba(255,255,255,0.02)}
+
+/* Facility modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100;display:flex;align-items:center;justify-content:center}
+.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:10px;padding:1.5rem;width:480px;max-width:95vw}
+.modal-title{font-size:15px;font-weight:500;margin-bottom:1rem}
+.modal-row{margin-bottom:.75rem}
+.modal-row label{font-size:11px;color:var(--text2);display:block;margin-bottom:3px;font-family:var(--mono)}
+.modal-row input,.modal-row select{width:100%;padding:6px 10px;font-size:13px;background:var(--bg3);border:1px solid var(--border2);border-radius:5px;color:var(--text);font-family:var(--sans)}
+.modal-2col{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.modal-btns{display:flex;gap:8px;margin-top:1rem;justify-content:flex-end}
+.mbtn{padding:6px 16px;font-size:13px;border-radius:5px;cursor:pointer;border:1px solid var(--border2);background:transparent;color:var(--text);font-family:var(--sans)}
+.mbtn:hover{background:var(--bg3)}
+.mbtn.primary{background:var(--accent2);border-color:var(--accent);color:#fff}
+.mbtn.primary:hover{background:var(--accent)}
+
+/* Comp table */
+.comp-table{width:100%;border-collapse:collapse;font-size:11px;margin-top:.5rem}
+.comp-table th{text-align:left;padding:3px 6px;font-size:9px;color:var(--text3);font-family:var(--mono);text-transform:uppercase;border-bottom:1px solid var(--border)}
+.comp-table td{padding:2px 4px;border-bottom:1px solid var(--border)}
+.comp-table input{background:var(--bg3);border:none;border-radius:3px;color:var(--text);font-family:var(--mono);font-size:11px;width:70px;padding:2px 5px;text-align:right}
+.comp-table input:focus{outline:1px solid var(--accent)}
+.comp-total-row td{font-weight:500;font-family:var(--mono);font-size:11px;padding:4px 4px 0;border-top:1px solid var(--border2);border-bottom:none}
+
+/* Badges */
+.badge{display:inline-block;font-size:9px;font-weight:500;padding:1px 6px;border-radius:3px;font-family:var(--mono);text-transform:uppercase}
+.badge-green{background:var(--green-bg);color:var(--green)}
+.badge-amber{background:var(--amber-bg);color:var(--amber)}
+.badge-red{background:var(--red-bg);color:var(--red)}
+.badge-blue{background:rgba(79,142,247,0.1);color:var(--accent)}
+.badge-teal{background:var(--teal-bg);color:var(--teal)}
+
+.hidden{display:none!important}
+.toolbar-mode-indicator{font-size:11px;color:var(--amber);font-family:var(--mono);padding:0 8px}
+
+/* Results panel */
+.results-panel{padding:.75rem;border-top:1px solid var(--border)}
+.res-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:.75rem}
+.res-card{background:var(--bg3);border-radius:5px;padding:.6rem;border:1px solid var(--border)}
+.res-label{font-size:9px;color:var(--text3);font-family:var(--mono);text-transform:uppercase;margin-bottom:3px}
+.res-val{font-size:16px;font-weight:500;font-family:var(--mono)}
+.res-unit{font-size:10px;color:var(--text3)}
+
+@media print{.iconrail,.palette,.props,.topbar-btns{display:none}.app{grid-template-columns:0 0 1fr 0}}
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="app-logo">EOS Emissions</div>
+  <div class="topbar-sep"></div>
+  <select class="fac-select" id="fac-select" onchange="switchFacility(this.value)"></select>
+  <button class="tbtn" onclick="showFacModal(null)">+ New facility</button>
+  <div class="topbar-sep"></div>
+  <span class="toolbar-mode-indicator hidden" id="mode-indicator">● Connect mode — click a port</span>
+  <div class="topbar-btns">
+    <button class="tbtn" onclick="runAllCalcs()" id="calc-btn">⚗ Run calculations</button>
+    <button class="tbtn green" onclick="exportFacility()">⬇ Export JSON</button>
+    <button class="tbtn" onclick="importFacility()">⬆ Import JSON</button>
+    <button class="tbtn" onclick="window.print()">🖨 Print</button>
+  </div>
+</div>
+
+<!-- ICON RAIL -->
+<div class="iconrail">
+  <button class="rail-btn active" title="Select" onclick="setMode('select')" id="rail-select">↖</button>
+  <button class="rail-btn" title="Connect streams" onclick="setMode('connect')" id="rail-connect">⟶</button>
+  <div class="rail-sep"></div>
+  <button class="rail-btn" title="Delete selected" onclick="deleteSelected()" id="rail-delete">🗑</button>
+  <div class="rail-sep"></div>
+  <button class="rail-btn" title="Zoom in" onclick="zoom(1.15)">+</button>
+  <button class="rail-btn" title="Zoom out" onclick="zoom(0.87)">−</button>
+  <button class="rail-btn" title="Fit to screen" onclick="fitView()" style="font-size:11px">⊡</button>
+  <div class="rail-sep"></div>
+  <button class="rail-btn" title="Stream table" onclick="toggleStreamTable()">≡</button>
+</div>
+
+<!-- EQUIPMENT PALETTE -->
+<div class="palette">
+  <div class="palette-section">Separation</div>
+  <div class="eq-item" draggable="true" ondragstart="startDrag(event,'wellhead')" ondblclick="addEquipmentAt('wellhead')">
+    <div class="eq-icon" style="background:rgba(79,142,247,0.1);color:var(--accent)">⬡</div>
+    <div><div class="eq-label">Wellhead</div><div class="eq-sub">Source node</div></div>
+  </div>
+  <div class="eq-item" draggable="true" ondragstart="startDrag(event,'fwko')" ondblclick="addEquipmentAt('fwko')">
+    <div class="eq-icon" style="background:rgba(45,212,191,0.1);color:var(--teal)">⬭</div>
+    <div><div class="eq-label">FWKO</div><div class="eq-sub">Free water knockout</div></div>
+  </div>
+  <div class="eq-item" draggable="true" ondragstart="startDrag(event,'separator')" ondblclick="addEquipmentAt('separator')">
+    <div class="eq-icon" style="background:rgba(45,212,191,0.1);color:var(--teal)">⬭</div>
+    <div><div class="eq-label">HP/LP Separator</div><div class="eq-sub">2-phase or 3-phase</div></div>
+  </div>
+  <div class="eq-item" draggable="true" ondragstart="startDrag(event,'gunbarrel')" ondblclick="addEquipmentAt('gunbarrel')">
+    <div class="eq-icon" style="background:rgba(45,212,191,0.1);color:var(--teal)">⬬</div>
+    <div><div class="eq-label">Gunbarrel</div><div class="eq-sub">Gravity separator</div></div>
+  </div>
+  <div class="palette-section">Storage</div>
+  <div class="eq-item" draggable="true" ondragstart="startDrag(event,'tank')" ondblclick="addEquipmentAt('tank')">
+    <div class="eq-icon" style="background:rgba(245,158,11,0.1);color:var(--amber)">⬡</div>
+    <div><div class="eq-label">Storage Tank</div><div class="eq-sub">Fixed/floating roof</div></div>
+  </div>
+  <div class="eq-item" draggable="true" ondragstart="startDrag(event,'stocktank')" ondblclick="addEquipmentAt('stocktank')">
+    <div class="eq-icon" style="background:rgba(245,158,11,0.1);color:var(--amber)">⬡</div>
+    <div><div class="eq-label">Stock Tank</div><div class="eq-sub">Atmospheric</div></div>
+  </div>
+  <div class="palette-section">Control devices</div>
+  <div class="eq-item" draggable="true" ondragstart="startDrag(event,'combustor')" ondblclick="addEquipmentAt('combustor')">
+    <div class="eq-icon" style="background:rgba(239,68,68,0.1);color:var(--red)">🔥</div>
+    <div><div class="eq-label">Combustor</div><div class="eq-sub">Enclosed flare</div></div>
+  </div>
+  <div class="eq-item" draggable="true" ondragstart="startDrag(event,'flare')" ondblclick="addEquipmentAt('flare')">
+    <div class="eq-icon" style="background:rgba(239,68,68,0.1);color:var(--red)">△</div>
+    <div><div class="eq-label">Flare</div><div class="eq-sub">Open flare</div></div>
+  </div>
+  <div class="eq-item" draggable="true" ondragstart="startDrag(event,'vru')" ondblclick="addEquipmentAt('vru')">
+    <div class="eq-icon" style="background:rgba(52,201,122,0.1);color:var(--green)">◎</div>
+    <div><div class="eq-label">VRU</div><div class="eq-sub">Vapor recovery unit</div></div>
+  </div>
+  <div class="palette-section">Compression</div>
+  <div class="eq-item" draggable="true" ondragstart="startDrag(event,'compressor')" ondblclick="addEquipmentAt('compressor')">
+    <div class="eq-icon" style="background:rgba(79,142,247,0.1);color:var(--accent)">◈</div>
+    <div><div class="eq-label">Compressor</div><div class="eq-sub">Reciprocating/centrifugal</div></div>
+  </div>
+  <div class="eq-item" draggable="true" ondragstart="startDrag(event,'pump')" ondblclick="addEquipmentAt('pump')">
+    <div class="eq-icon" style="background:rgba(79,142,247,0.1);color:var(--accent)">◉</div>
+    <div><div class="eq-label">Pump</div><div class="eq-sub">Centrifugal/positive disp</div></div>
+  </div>
+  <div class="palette-section">Utilities</div>
+  <div class="eq-item" draggable="true" ondragstart="startDrag(event,'heater')" ondblclick="addEquipmentAt('heater')">
+    <div class="eq-icon" style="background:rgba(239,68,68,0.08);color:var(--red)">⊡</div>
+    <div><div class="eq-label">Heater/Treater</div><div class="eq-sub">Line heater / E-O treater</div></div>
+  </div>
+  <div class="eq-item" draggable="true" ondragstart="startDrag(event,'sink')" ondblclick="addEquipmentAt('sink')">
+    <div class="eq-icon" style="background:rgba(90,95,112,0.2);color:var(--text3)">⊗</div>
+    <div><div class="eq-label">Sink / Export</div><div class="eq-sub">Pipeline / sales</div></div>
+  </div>
+</div>
+
+<!-- CANVAS -->
+<div class="canvas-wrap" id="canvas-wrap"
+  ondragover="event.preventDefault()"
+  ondrop="dropEquipment(event)"
+  onmousedown="canvasMouseDown(event)"
+  onmousemove="canvasMouseMove(event)"
+  onmouseup="canvasMouseUp(event)">
+  <svg id="pfd-canvas" width="100%" height="100%">
+    <defs>
+      <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+        <polygon points="0 0,8 3,0 6" fill="rgba(148,153,168,0.6)"/>
+      </marker>
+      <marker id="arrowhead-active" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+        <polygon points="0 0,8 3,0 6" fill="#4f8ef7"/>
+      </marker>
+    </defs>
+    <g id="streams-layer"></g>
+    <g id="temp-stream-layer"></g>
+  </svg>
+  <div class="canvas-nodes" id="canvas-nodes" ondragover="event.preventDefault()" ondrop="dropEquipment(event)"></div>
+</div>
+
+<!-- PROPERTIES PANEL -->
+<div class="props" id="props-panel">
+  <div id="props-no-sel" class="no-select-msg">
+    <div style="font-size:24px">↖</div>
+    <div>Click equipment to configure</div>
+    <div style="font-size:11px;margin-top:.25rem">Drag from palette to add equipment<br>Use ⟶ mode to connect streams</div>
+  </div>
+  <div id="props-content" class="hidden">
+    <div class="props-header">
+      <div>
+        <div class="props-title" id="prop-title">Equipment</div>
+        <div class="props-sub" id="prop-sub">—</div>
+      </div>
+      <div id="prop-eq-badge"></div>
+    </div>
+    <div class="props-body" id="props-body"></div>
+  </div>
+  <!-- Stream table -->
+  <div id="stream-table-section" class="hidden">
+    <div class="props-header"><div class="props-title">Stream table</div></div>
+    <div class="stream-table-wrap">
+      <table class="stable">
+        <thead><tr><th>Stream</th><th>From</th><th>To</th><th>T (°F)</th><th>P (psia)</th><th>Phase</th></tr></thead>
+        <tbody id="stream-table-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- FACILITY MODAL -->
+<div class="modal-overlay hidden" id="fac-modal">
+  <div class="modal">
+    <div class="modal-title" id="fac-modal-title">New facility</div>
+    <div class="modal-row"><label>Facility name *</label><input type="text" id="fm-name" placeholder="e.g. Mid Fitts Battery"></div>
+    <div class="modal-2col">
+      <div class="modal-row"><label>Field / area</label><input type="text" id="fm-field" placeholder="e.g. MFU"></div>
+      <div class="modal-row"><label>State</label><select id="fm-state"><option>Illinois</option><option>Oklahoma</option><option>Other</option></select></div>
+    </div>
+    <div class="modal-2col">
+      <div class="modal-row"><label>Facility type</label><select id="fm-type"><option>Tank battery</option><option>Compressor station</option><option>Well pad</option><option>Other</option></select></div>
+      <div class="modal-row"><label>OOOOb applicable</label><select id="fm-oooob"><option>Yes</option><option>No</option><option>Under review</option></select></div>
+    </div>
+    <div class="modal-row"><label>Notes</label><input type="text" id="fm-notes" placeholder="Optional"></div>
+    <div class="modal-btns">
+      <button class="mbtn" onclick="closeFacModal()">Cancel</button>
+      <button class="mbtn primary" onclick="saveFacility()">Save facility</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// COMPONENT DATABASE
+// ═══════════════════════════════════════════════════════════
+const COMP=[
+  {n:"N₂",  Tc:227.16,Pc:492.84, w:0.037,MW:28.014,isHAP:false,isVOC:false},
+  {n:"CO₂", Tc:547.56,Pc:1069.87,w:0.225,MW:44.010,isHAP:false,isVOC:false},
+  {n:"H₂S", Tc:672.12,Pc:1299.97,w:0.100,MW:34.082,isHAP:true, isVOC:false},
+  {n:"C1",  Tc:343.08,Pc:667.03, w:0.011,MW:16.043,isHAP:false,isVOC:false},
+  {n:"C2",  Tc:549.78,Pc:708.35, w:0.099,MW:30.070,isHAP:false,isVOC:true},
+  {n:"C3",  Tc:665.64,Pc:615.76, w:0.153,MW:44.097,isHAP:false,isVOC:true},
+  {n:"iC4", Tc:734.46,Pc:529.09, w:0.176,MW:58.124,isHAP:false,isVOC:true},
+  {n:"nC4", Tc:765.18,Pc:550.56, w:0.200,MW:58.124,isHAP:false,isVOC:true},
+  {n:"iC5", Tc:829.10,Pc:483.48, w:0.227,MW:72.151,isHAP:false,isVOC:true},
+  {n:"nC5", Tc:845.46,Pc:488.78, w:0.251,MW:72.151,isHAP:false,isVOC:true},
+  {n:"C6",  Tc:913.50,Pc:437.47, w:0.296,MW:86.178,isHAP:true, isVOC:true},
+  {n:"C7+", Tc:1070.0,Pc:358.0,  w:0.490,MW:114.0, isHAP:true, isVOC:true},
+];
+const NC=COMP.length;
+const R=10.7316;
+
+// ═══════════════════════════════════════════════════════════
+// EQUIPMENT DEFINITIONS
+// ═══════════════════════════════════════════════════════════
+const EQ_DEFS={
+  wellhead: {label:'Wellhead',    icon:'⬡', color:'var(--accent)',    bg:'rgba(79,142,247,0.12)',  w:64,h:64, ports:{outlet:'right',gasout:'top'}, defaultProps:{tag:'WH-001',pressure:500,temp:120,oilRate:100,gasRate:50,waterRate:200}},
+  fwko:     {label:'FWKO',       icon:'⬭', color:'var(--teal)',      bg:'rgba(45,212,191,0.12)', w:80,h:56, ports:{inlet:'left',outlet:'right',waterout:'bottom',gasout:'top'}, defaultProps:{tag:'V-001',pressure:50,temp:110,orientation:'Horizontal'}},
+  separator:{label:'Separator',  icon:'⬭', color:'var(--teal)',      bg:'rgba(45,212,191,0.12)', w:80,h:56, ports:{inlet:'left',outlet:'right',waterout:'bottom',gasout:'top'}, defaultProps:{tag:'V-002',pressure:200,temp:100,phases:'3-phase',orientation:'Horizontal'}},
+  gunbarrel:{label:'Gunbarrel',  icon:'⬬', color:'var(--teal)',      bg:'rgba(45,212,191,0.12)', w:60,h:80, ports:{inlet:'top',outlet:'bottom',gasout:'right'}, defaultProps:{tag:'GB-001',pressure:14.7,temp:100,diameter:8,height:16}},
+  tank:     {label:'Tank',       icon:'⬡', color:'var(--amber)',     bg:'rgba(245,158,11,0.12)', w:64,h:72, ports:{inlet:'top',outlet:'bottom',vent:'right'}, defaultProps:{tag:'TK-001',pressure:14.65,temp:80,roofType:'Fixed cone',diameter:15,height:20,shellColor:'White'}},
+  stocktank:{label:'Stock Tank', icon:'⬡', color:'var(--amber)',     bg:'rgba(245,158,11,0.12)', w:64,h:72, ports:{inlet:'top',outlet:'bottom',vent:'right'}, defaultProps:{tag:'TK-101',pressure:14.65,temp:75,roofType:'Fixed cone',diameter:12,height:16}},
+  combustor:{label:'Combustor',  icon:'🔥', color:'var(--red)',       bg:'rgba(239,68,68,0.12)',  w:56,h:64, ports:{inlet:'bottom',stack:'top'}, defaultProps:{tag:'CD-001',destroyEff:98,pilotGas:0.5,model:'',manufacturer:''}},
+  flare:    {label:'Flare',      icon:'△', color:'var(--red)',       bg:'rgba(239,68,68,0.12)',  w:48,h:72, ports:{inlet:'bottom'}, defaultProps:{tag:'FL-001',destroyEff:98,pilotGas:1.0,stackHeight:40}},
+  vru:      {label:'VRU',        icon:'◎', color:'var(--green)',     bg:'rgba(52,201,122,0.12)', w:64,h:56, ports:{inlet:'left',outlet:'right'}, defaultProps:{tag:'VRU-001',efficiency:95,designFlow:50,compression:125}},
+  compressor:{label:'Compressor',icon:'◈', color:'var(--accent)',    bg:'rgba(79,142,247,0.12)', w:64,h:56, ports:{inlet:'left',outlet:'right'}, defaultProps:{tag:'C-001',type:'Reciprocating',suctionP:50,dischargeP:500,rodPacking:'Yes',cylinders:2}},
+  pump:     {label:'Pump',       icon:'◉', color:'var(--accent)',    bg:'rgba(79,142,247,0.12)', w:56,h:56, ports:{inlet:'left',outlet:'right'}, defaultProps:{tag:'P-001',type:'Centrifugal',suctionP:14.7,dischargeP:100,fluid:'Produced water'}},
+  heater:   {label:'Heater',     icon:'⊡', color:'var(--red)',       bg:'rgba(239,68,68,0.08)',  w:72,h:52, ports:{inlet:'left',outlet:'right'}, defaultProps:{tag:'H-001',type:'Line heater',duty:0.5,fuelGas:0.1,inletT:60,outletT:120}},
+  sink:     {label:'Sink',       icon:'⊗', color:'var(--text3)',     bg:'rgba(90,95,112,0.15)',  w:52,h:52, ports:{inlet:'left'}, defaultProps:{tag:'SINK-001',destination:'Pipeline export'}},
+};
+
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
+let facilities={};
+let activeFacId=null;
+let mode='select'; // select | connect
+let selectedNodeId=null;
+let connectFrom=null; // {nodeId, port}
+let dragOffset={x:0,y:0};
+let draggingNodeId=null;
+let canvasOffset={x:0,y:0};
+let canvasScale=1;
+let isPanning=false;
+let panStart={x:0,y:0};
+let streamTableVisible=false;
+
+function getActiveFac(){return facilities[activeFacId]||null;}
+function getNode(id){const f=getActiveFac();return f?f.nodes.find(n=>n.id===id):null;}
+
+// ═══════════════════════════════════════════════════════════
+// STORAGE
+// ═══════════════════════════════════════════════════════════
+const SK='eos_pfd_v1';
+function loadData(){
+  try{const r=localStorage.getItem(SK);if(r){const d=JSON.parse(r);if(d&&d.facilities){facilities=d.facilities;activeFacId=d.activeFacId;return;}}}catch(e){}
+  // Defaults
+  const id='fac_mf';
+  facilities={};
+  facilities[id]={id,name:'Mid Fitts Battery',field:'MFU',state:'Illinois',type:'Tank battery',oooob:'Yes',notes:'FWKO + gunbarrel train',
+    nodes:[
+      {id:'n1',type:'wellhead',x:80,y:200,props:{tag:'WH-001',pressure:315,temp:120,oilRate:120,gasRate:85,waterRate:360},comp:[0.5,1.2,0.8,45.0,8.0,6.0,1.5,3.0,1.5,1.5,4.0,27.0]},
+      {id:'n2',type:'fwko',x:240,y:188,props:{tag:'V-001',pressure:50,temp:110,orientation:'Horizontal'},comp:null},
+      {id:'n3',type:'gunbarrel',x:400,y:170,props:{tag:'GB-001',pressure:14.7,temp:100,diameter:8,height:16},comp:null},
+      {id:'n4',type:'stocktank',x:400,y:340,props:{tag:'TK-101',pressure:14.65,temp:75,roofType:'Fixed cone',diameter:12,height:16},comp:null},
+      {id:'n5',type:'combustor',x:560,y:130,props:{tag:'CD-001',destroyEff:98,pilotGas:0.5,model:'',manufacturer:''},comp:null},
+    ],
+    streams:[
+      {id:'s1',fromNode:'n1',fromPort:'outlet',toNode:'n2',toPort:'inlet',label:'S-01',calc:null},
+      {id:'s2',fromNode:'n2',fromPort:'outlet',toNode:'n3',toPort:'inlet',label:'S-02',calc:null},
+      {id:'s3',fromNode:'n3',fromPort:'outlet',toNode:'n4',toPort:'inlet',label:'S-03',calc:null},
+      {id:'s4',fromNode:'n3',fromPort:'gasout',toNode:'n5',toPort:'inlet',label:'S-04',calc:null},
+    ]
+  };
+  activeFacId=id;
+  const id2='fac_honey';
+  facilities[id2]={id:id2,name:'Honey TB',field:'IL',state:'Illinois',type:'Tank battery',oooob:'Under review',notes:'Sour gas — combustor needs upgrade',
+    nodes:[
+      {id:'n1',type:'wellhead',x:80,y:180,props:{tag:'WH-001',pressure:280,temp:115,oilRate:80,gasRate:60,waterRate:240},comp:[0.4,0.8,3.5,40.0,7.0,5.5,1.5,3.0,1.5,1.5,4.3,31.0]},
+      {id:'n2',type:'fwko',x:240,y:168,props:{tag:'V-001',pressure:40,temp:105,orientation:'Horizontal'},comp:null},
+      {id:'n3',type:'stocktank',x:400,y:168,props:{tag:'TK-101',pressure:14.65,temp:78,roofType:'Fixed cone',diameter:10,height:14},comp:null},
+      {id:'n4',type:'combustor',x:540,y:110,props:{tag:'CD-001',destroyEff:85,pilotGas:0.5,model:'Aging unit',manufacturer:''},comp:null},
+    ],
+    streams:[
+      {id:'s1',fromNode:'n1',fromPort:'outlet',toNode:'n2',toPort:'inlet',label:'S-01',calc:null},
+      {id:'s2',fromNode:'n2',fromPort:'outlet',toNode:'n3',toPort:'inlet',label:'S-02',calc:null},
+      {id:'s3',fromNode:'n2',fromPort:'gasout',toNode:'n4',toPort:'inlet',label:'S-03',calc:null},
+    ]
+  };
+}
+function saveData(){
+  try{localStorage.setItem(SK,JSON.stringify({facilities,activeFacId}));}catch(e){}
+}
+
+// ═══════════════════════════════════════════════════════════
+// FACILITY MANAGEMENT
+// ═══════════════════════════════════════════════════════════
+let editingFacId=null;
+function showFacModal(id){
+  editingFacId=id;
+  const modal=document.getElementById('fac-modal');
+  if(id){
+    const f=facilities[id];
+    document.getElementById('fac-modal-title').textContent='Edit facility';
+    document.getElementById('fm-name').value=f.name;
+    document.getElementById('fm-field').value=f.field||'';
+    document.getElementById('fm-state').value=f.state||'Illinois';
+    document.getElementById('fm-type').value=f.type||'Tank battery';
+    document.getElementById('fm-oooob').value=f.oooob||'Yes';
+    document.getElementById('fm-notes').value=f.notes||'';
+  } else {
+    document.getElementById('fac-modal-title').textContent='New facility';
+    ['fm-name','fm-field','fm-notes'].forEach(i=>document.getElementById(i).value='');
+  }
+  modal.classList.remove('hidden');
+  setTimeout(()=>document.getElementById('fm-name').focus(),100);
+}
+function closeFacModal(){document.getElementById('fac-modal').classList.add('hidden');}
+function saveFacility(){
+  const name=document.getElementById('fm-name').value.trim();
+  if(!name){alert('Enter a facility name.');return;}
+  if(editingFacId){
+    const f=facilities[editingFacId];
+    Object.assign(f,{name,field:document.getElementById('fm-field').value,state:document.getElementById('fm-state').value,type:document.getElementById('fm-type').value,oooob:document.getElementById('fm-oooob').value,notes:document.getElementById('fm-notes').value});
+  } else {
+    const id='fac_'+Date.now();
+    facilities[id]={id,name,field:document.getElementById('fm-field').value,state:document.getElementById('fm-state').value,type:document.getElementById('fm-type').value,oooob:document.getElementById('fm-oooob').value,notes:document.getElementById('fm-notes').value,nodes:[],streams:[]};
+    activeFacId=id;
+  }
+  saveData();closeFacModal();renderFacSelect();renderPFD();
+}
+function switchFacility(id){activeFacId=id;selectedNodeId=null;saveData();renderPFD();showPropsPanel(null);}
+function renderFacSelect(){
+  const sel=document.getElementById('fac-select');
+  sel.innerHTML=Object.values(facilities).map(f=>`<option value="${f.id}" ${f.id===activeFacId?'selected':''}>${f.name}</option>`).join('');
+}
+function exportFacility(){
+  const blob=new Blob([JSON.stringify({facilities,activeFacId,exportedAt:new Date().toISOString()},null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='eos-facilities.json';a.click();URL.revokeObjectURL(a.href);
+}
+function importFacility(){
+  const inp=document.createElement('input');inp.type='file';inp.accept='.json';
+  inp.onchange=e=>{
+    const file=e.target.files[0];if(!file)return;
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      try{
+        const d=JSON.parse(ev.target.result);
+        if(d.facilities){facilities=d.facilities;activeFacId=d.activeFacId||Object.keys(d.facilities)[0];}
+        else if(Array.isArray(d)){d.forEach(f=>{facilities[f.id]=f;});activeFacId=d[0].id;}
+        saveData();renderFacSelect();renderPFD();showPropsPanel(null);
+        alert('Import successful.');
+      }catch(err){alert('Import failed: '+err.message);}
+    };
+    reader.readAsText(file);
+  };
+  inp.click();
+}
+
+// ═══════════════════════════════════════════════════════════
+// MODE
+// ═══════════════════════════════════════════════════════════
+function setMode(m){
+  mode=m;connectFrom=null;
+  document.getElementById('rail-select').classList.toggle('active',m==='select');
+  document.getElementById('rail-connect').classList.toggle('active',m==='connect');
+  document.getElementById('mode-indicator').classList.toggle('hidden',m!=='connect');
+  document.getElementById('canvas-wrap').style.cursor=m==='connect'?'crosshair':'default';
+}
+
+// ═══════════════════════════════════════════════════════════
+// DRAG & DROP FROM PALETTE
+// ═══════════════════════════════════════════════════════════
+let dragType=null;
+function startDrag(e,type){dragType=type;e.dataTransfer.effectAllowed='copy';e.dataTransfer.setData('text/plain',type);}
+function addEquipmentAt(type,x,y){
+  if(!activeFacId)return;
+  const def=EQ_DEFS[type];
+  const id='n'+Date.now();
+  const fac=getActiveFac();
+  const node={id,type,x:x||80+fac.nodes.length*30,y:y||120+fac.nodes.length*20,props:JSON.parse(JSON.stringify(def.defaultProps)),comp:type==='wellhead'?new Array(NC).fill(0):null};
+  const sameType=fac.nodes.filter(n=>n.type===type).length;
+  node.props.tag=def.defaultProps.tag.replace(/\d+$/,String(sameType+1).padStart(3,'0'));
+  fac.nodes.push(node);
+  saveData();renderPFD();selectNode(id);
+}
+function dropEquipment(e){
+  e.preventDefault();
+  if(!dragType) dragType=e.dataTransfer.getData('text/plain');
+  if(!dragType||!activeFacId)return;
+  const wrap=document.getElementById('canvas-wrap');
+  const rect=wrap.getBoundingClientRect();
+  const x=(e.clientX-rect.left-canvasOffset.x)/canvasScale-40;
+  const y=(e.clientY-rect.top-canvasOffset.y)/canvasScale-32;
+  const def=EQ_DEFS[dragType];
+  const id='n'+Date.now();
+  const node={id,type:dragType,x:Math.max(0,x),y:Math.max(0,y),props:JSON.parse(JSON.stringify(def.defaultProps)),comp:dragType==='wellhead'?new Array(NC).fill(0):null};
+  // Auto-number tag
+  const fac=getActiveFac();
+  const sameType=fac.nodes.filter(n=>n.type===dragType).length;
+  node.props.tag=def.defaultProps.tag.replace(/\d+$/,String(sameType+1).padStart(3,'0'));
+  fac.nodes.push(node);
+  saveData();renderPFD();selectNode(id);
+  dragType=null;
+}
+
+// ═══════════════════════════════════════════════════════════
+// CANVAS TRANSFORM
+// ═══════════════════════════════════════════════════════════
+function applyTransform(){
+  document.getElementById('canvas-nodes').style.transform=`translate(${canvasOffset.x}px,${canvasOffset.y}px) scale(${canvasScale})`;
+  document.getElementById('canvas-nodes').style.transformOrigin='0 0';
+  renderStreamsSVG();
+}
+function zoom(factor){
+  canvasScale=Math.max(0.3,Math.min(3,canvasScale*factor));
+  applyTransform();
+}
+function fitView(){
+  const fac=getActiveFac();if(!fac||!fac.nodes.length){canvasOffset={x:40,y:40};canvasScale=1;applyTransform();return;}
+  const xs=fac.nodes.map(n=>n.x),ys=fac.nodes.map(n=>n.y);
+  const minX=Math.min(...xs),maxX=Math.max(...xs)+100,minY=Math.min(...ys),maxY=Math.max(...ys)+100;
+  const wrap=document.getElementById('canvas-wrap');
+  const W=wrap.clientWidth,H=wrap.clientHeight;
+  const scaleX=W/(maxX-minX+80),scaleY=H/(maxY-minY+80);
+  canvasScale=Math.min(scaleX,scaleY,1.2);
+  canvasOffset.x=(W-(maxX-minX)*canvasScale)/2-minX*canvasScale;
+  canvasOffset.y=(H-(maxY-minY)*canvasScale)/2-minY*canvasScale;
+  applyTransform();
+}
+
+// ═══════════════════════════════════════════════════════════
+// CANVAS MOUSE EVENTS
+// ═══════════════════════════════════════════════════════════
+function canvasMouseDown(e){
+  if(e.target===document.getElementById('canvas-wrap')||e.target===document.getElementById('pfd-canvas')){
+    if(mode==='select'){isPanning=true;panStart={x:e.clientX-canvasOffset.x,y:e.clientY-canvasOffset.y};}
+    selectedNodeId=null;renderPFD();showPropsPanel(null);
+  }
+}
+function canvasMouseMove(e){
+  if(isPanning&&mode==='select'){canvasOffset={x:e.clientX-panStart.x,y:e.clientY-panStart.y};applyTransform();}
+  if(draggingNodeId&&mode==='select'){
+    const wrap=document.getElementById('canvas-wrap');
+    const rect=wrap.getBoundingClientRect();
+    const x=(e.clientX-rect.left-canvasOffset.x)/canvasScale-dragOffset.x;
+    const y=(e.clientY-rect.top-canvasOffset.y)/canvasScale-dragOffset.y;
+    const node=getNode(draggingNodeId);
+    if(node){node.x=Math.max(0,x);node.y=Math.max(0,y);renderStreamsSVG();positionNode(draggingNodeId);}
+  }
+  // Temp stream line
+  if(connectFrom&&mode==='connect'){
+    const wrap=document.getElementById('canvas-wrap');
+    const rect=wrap.getBoundingClientRect();
+    const mx=(e.clientX-rect.left-canvasOffset.x)/canvasScale;
+    const my=(e.clientY-rect.top-canvasOffset.y)/canvasScale;
+    const fromPt=getPortPoint(connectFrom.nodeId,connectFrom.port);
+    const tempG=document.getElementById('temp-stream-layer');
+    if(fromPt){tempG.innerHTML=`<line x1="${fromPt.x}" y1="${fromPt.y}" x2="${mx}" y2="${my}" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="5,3" opacity="0.7"/>`;}
+  }
+}
+function canvasMouseUp(e){isPanning=false;if(draggingNodeId){saveData();draggingNodeId=null;}}
+
+// ═══════════════════════════════════════════════════════════
+// PORT INTERACTION
+// ═══════════════════════════════════════════════════════════
+function getPortPoint(nodeId,portName){
+  const node=getNode(nodeId);if(!node)return null;
+  const def=EQ_DEFS[node.type];
+  const w=def.w,h=def.h;
+  const cx=node.x+w/2,cy=node.y+h/2;
+  const portPos=def.ports[portName];
+  if(!portPos)return{x:cx,y:cy};
+  if(portPos==='left')return{x:node.x,y:cy};
+  if(portPos==='right')return{x:node.x+w,y:cy};
+  if(portPos==='top')return{x:cx,y:node.y};
+  if(portPos==='bottom')return{x:cx,y:node.y+h};
+  return{x:cx,y:cy};
+}
+function portClicked(nodeId,portName,e){
+  e.stopPropagation();
+  if(mode!=='connect')return;
+  if(!connectFrom){
+    connectFrom={nodeId,port:portName};
+    document.getElementById('mode-indicator').textContent='● Connect mode — now click destination port';
+  } else {
+    if(connectFrom.nodeId===nodeId){connectFrom=null;document.getElementById('temp-stream-layer').innerHTML='';return;}
+    const fac=getActiveFac();
+    const sid='s'+Date.now();
+    const streamNum=fac.streams.length+1;
+    fac.streams.push({id:sid,fromNode:connectFrom.nodeId,fromPort:connectFrom.port,toNode:nodeId,toPort:portName,label:'S-'+String(streamNum).padStart(2,'0'),calc:null});
+    saveData();connectFrom=null;
+    document.getElementById('temp-stream-layer').innerHTML='';
+    document.getElementById('mode-indicator').textContent='● Connect mode — click a port';
+    renderStreamsSVG();updateStreamTable();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER PFD
+// ═══════════════════════════════════════════════════════════
+function renderPFD(){
+  const fac=getActiveFac();
+  const container=document.getElementById('canvas-nodes');
+  container.innerHTML='';
+  if(!fac){applyTransform();return;}
+  fac.nodes.forEach(node=>createNodeElement(node));
+  applyTransform();
+  renderStreamsSVG();
+  updateStreamTable();
+}
+
+function createNodeElement(node){
+  const def=EQ_DEFS[node.type];
+  const container=document.getElementById('canvas-nodes');
+  const div=document.createElement('div');
+  div.className='eq-node'+(node.id===selectedNodeId?' selected':'');
+  div.id='node-'+node.id;
+  div.style.left=node.x+'px';
+  div.style.top=node.y+'px';
+  div.style.width=def.w+'px';
+
+  // Body
+  const body=document.createElement('div');
+  body.className='eq-node-body';
+  body.style.width=def.w+'px';
+  body.style.height=def.h+'px';
+  body.style.background=def.bg;
+  body.style.fontSize=Math.min(def.w,def.h)*0.4+'px';
+  body.innerHTML=def.icon;
+
+  // Ports
+  Object.entries(def.ports).forEach(([pname,ppos])=>{
+    const port=document.createElement('div');
+    port.className='port '+ppos;
+    port.title=pname;
+    port.onclick=(e)=>portClicked(node.id,pname,e);
+    body.appendChild(port);
+  });
+
+  // Label
+  const label=document.createElement('div');
+  label.className='eq-node-label';
+  label.innerHTML=`${def.label}<br><span class="eq-node-tag">${node.props.tag||''}</span>`;
+
+  div.appendChild(body);
+  div.appendChild(label);
+
+  // Select on click
+  div.addEventListener('mousedown',(e)=>{
+    if(mode==='select'&&!e.target.classList.contains('port')){
+      e.stopPropagation();
+      const rect=div.getBoundingClientRect();
+      const wrap=document.getElementById('canvas-wrap').getBoundingClientRect();
+      dragOffset.x=(e.clientX-rect.left)/canvasScale;
+      dragOffset.y=(e.clientY-rect.top)/canvasScale;
+      draggingNodeId=node.id;
+      selectNode(node.id);
+    }
+  });
+  div.addEventListener('click',(e)=>{
+    if(!e.target.classList.contains('port')&&mode==='select'){selectNode(node.id);}
+  });
+  container.appendChild(div);
+}
+
+function positionNode(id){
+  const el=document.getElementById('node-'+id);
+  const node=getNode(id);
+  if(el&&node){el.style.left=node.x+'px';el.style.top=node.y+'px';}
+}
+
+function selectNode(id){
+  selectedNodeId=id;
+  document.querySelectorAll('.eq-node').forEach(el=>el.classList.remove('selected'));
+  const el=document.getElementById('node-'+id);
+  if(el)el.classList.add('selected');
+  showPropsPanel(id);
+}
+
+function deleteSelected(){
+  if(!selectedNodeId||!activeFacId)return;
+  if(!confirm('Delete this equipment and its connected streams?'))return;
+  const fac=getActiveFac();
+  fac.nodes=fac.nodes.filter(n=>n.id!==selectedNodeId);
+  fac.streams=fac.streams.filter(s=>s.fromNode!==selectedNodeId&&s.toNode!==selectedNodeId);
+  selectedNodeId=null;saveData();renderPFD();showPropsPanel(null);
+}
+
+// ═══════════════════════════════════════════════════════════
+// STREAM SVG
+// ═══════════════════════════════════════════════════════════
+function renderStreamsSVG(){
+  const fac=getActiveFac();
+  const g=document.getElementById('streams-layer');
+  g.innerHTML='';
+  if(!fac)return;
+  const svg=document.getElementById('pfd-canvas');
+  const wrap=document.getElementById('canvas-wrap');
+  svg.setAttribute('width',wrap.clientWidth);
+  svg.setAttribute('height',wrap.clientHeight);
+  fac.streams.forEach(s=>{
+    const fp=getPortPoint(s.fromNode,s.fromPort);
+    const tp=getPortPoint(s.toNode,s.toPort);
+    if(!fp||!tp)return;
+    // Transform to screen coords
+    const x1=fp.x*canvasScale+canvasOffset.x;
+    const y1=fp.y*canvasScale+canvasOffset.y;
+    const x2=tp.x*canvasScale+canvasOffset.x;
+    const y2=tp.y*canvasScale+canvasOffset.y;
+    const mx=(x1+x2)/2;
+    const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d',`M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`);
+    path.setAttribute('stroke','rgba(148,153,168,0.5)');
+    path.setAttribute('stroke-width','1.5');
+    path.setAttribute('fill','none');
+    path.setAttribute('marker-end','url(#arrowhead)');
+    // Stream label
+    const text=document.createElementNS('http://www.w3.org/2000/svg','text');
+    text.setAttribute('x',mx);
+    text.setAttribute('y',(y1+y2)/2-4);
+    text.setAttribute('text-anchor','middle');
+    text.setAttribute('font-size','9');
+    text.setAttribute('font-family','IBM Plex Mono,monospace');
+    text.setAttribute('fill','rgba(148,153,168,0.7)');
+    text.textContent=s.label||'';
+    // Delete on double click
+    path.addEventListener('dblclick',()=>{
+      if(confirm('Delete stream '+s.label+'?')){
+        const fac=getActiveFac();
+        fac.streams=fac.streams.filter(x=>x.id!==s.id);
+        saveData();renderStreamsSVG();updateStreamTable();
+      }
+    });
+    g.appendChild(path);
+    g.appendChild(text);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// PROPERTIES PANEL
+// ═══════════════════════════════════════════════════════════
+function showPropsPanel(nodeId){
+  const noSel=document.getElementById('props-no-sel');
+  const content=document.getElementById('props-content');
+  const streamSec=document.getElementById('stream-table-section');
+  if(!nodeId){
+    if(!streamTableVisible){noSel.classList.remove('hidden');content.classList.add('hidden');streamSec.classList.add('hidden');}
+    return;
+  }
+  streamSec.classList.add('hidden');
+  noSel.classList.add('hidden');
+  content.classList.remove('hidden');
+  const node=getNode(nodeId);
+  if(!node)return;
+  const def=EQ_DEFS[node.type];
+  document.getElementById('prop-title').textContent=def.label;
+  document.getElementById('prop-sub').textContent=node.props.tag||'';
+  document.getElementById('prop-eq-badge').innerHTML=`<span class="badge badge-teal">${node.type.toUpperCase()}</span>`;
+  renderPropsBody(node,def);
+}
+
+function renderPropsBody(node,def){
+  const body=document.getElementById('props-body');
+  body.innerHTML='';
+
+  // General section
+  const genSec=propSection('General');
+  genSec.appendChild(propRow('Tag number','text','props-tag',node.props.tag||''));
+  body.appendChild(genSec);
+
+  // Type-specific sections
+  if(['wellhead','fwko','separator','gunbarrel','stocktank','tank'].includes(node.type)){
+    const opSec=propSection('Operating conditions');
+    const r1=document.createElement('div');r1.className='prop-2col';
+    r1.appendChild(propRow('Temperature (°F)','number','props-temp',node.props.temp||80));
+    r1.appendChild(propRow('Pressure (psia)','number','props-press',node.props.pressure||14.7));
+    opSec.appendChild(r1);
+    if(node.type==='wellhead'){
+      const r2=document.createElement('div');r2.className='prop-2col';
+      r2.appendChild(propRow('Oil rate (BBL/day)','number','props-oil',node.props.oilRate||0));
+      r2.appendChild(propRow('Gas rate (MCF/day)','number','props-gas',node.props.gasRate||0));
+      opSec.appendChild(r2);
+      opSec.appendChild(propRow('Water rate (BBL/day)','number','props-water',node.props.waterRate||0));
+    }
+    if(['separator','fwko'].includes(node.type)){
+      opSec.appendChild(propRowSelect('Orientation',['Horizontal','Vertical'],'props-orient',node.props.orientation||'Horizontal'));
+    }
+    if(['tank','stocktank'].includes(node.type)){
+      opSec.appendChild(propRowSelect('Roof type',['Fixed cone','Floating','Open top','Dome'],'props-rooftype',node.props.roofType||'Fixed cone'));
+      const r2=document.createElement('div');r2.className='prop-2col';
+      r2.appendChild(propRow('Diameter (ft)','number','props-diam',node.props.diameter||15));
+      r2.appendChild(propRow('Height (ft)','number','props-ht',node.props.height||20));
+      opSec.appendChild(r2);
+    }
+    if(node.type==='gunbarrel'){
+      const r2=document.createElement('div');r2.className='prop-2col';
+      r2.appendChild(propRow('Diameter (ft)','number','props-diam',node.props.diameter||8));
+      r2.appendChild(propRow('Height (ft)','number','props-ht',node.props.height||16));
+      opSec.appendChild(r2);
+    }
+    body.appendChild(opSec);
+  }
+
+  if(['combustor','flare'].includes(node.type)){
+    const cdSec=propSection('Control device');
+    const r1=document.createElement('div');r1.className='prop-2col';
+    r1.appendChild(propRow('Destroy efficiency (%)','number','props-eff',node.props.destroyEff||98));
+    r1.appendChild(propRow('Pilot gas (MCF/day)','number','props-pilot',node.props.pilotGas||0.5));
+    cdSec.appendChild(r1);
+    cdSec.appendChild(propRow('Model / description','text','props-model',node.props.model||''));
+    cdSec.appendChild(propRow('Manufacturer','text','props-mfr',node.props.manufacturer||''));
+    if(node.type==='flare')cdSec.appendChild(propRow('Stack height (ft)','number','props-stk',node.props.stackHeight||40));
+    body.appendChild(cdSec);
+  }
+
+  if(node.type==='vru'){
+    const vruSec=propSection('VRU specs');
+    const r1=document.createElement('div');r1.className='prop-2col';
+    r1.appendChild(propRow('Efficiency (%)','number','props-eff',node.props.efficiency||95));
+    r1.appendChild(propRow('Design flow (MCF/day)','number','props-flow',node.props.designFlow||50));
+    vruSec.appendChild(r1);
+    vruSec.appendChild(propRow('Discharge pressure (psia)','number','props-comp',node.props.compression||125));
+    body.appendChild(vruSec);
+  }
+
+  if(node.type==='compressor'){
+    const cmpSec=propSection('Compressor specs');
+    cmpSec.appendChild(propRowSelect('Type',['Reciprocating','Centrifugal','Screw'],'props-ctype',node.props.type||'Reciprocating'));
+    const r1=document.createElement('div');r1.className='prop-2col';
+    r1.appendChild(propRow('Suction P (psia)','number','props-sp',node.props.suctionP||50));
+    r1.appendChild(propRow('Discharge P (psia)','number','props-dp',node.props.dischargeP||500));
+    cmpSec.appendChild(r1);
+    cmpSec.appendChild(propRowSelect('Rod packing emission',['Yes','No'],'props-rodpack',node.props.rodPacking||'Yes'));
+    cmpSec.appendChild(propRow('Number of cylinders','number','props-cyl',node.props.cylinders||2));
+    body.appendChild(cmpSec);
+  }
+
+  if(node.type==='heater'){
+    const htSec=propSection('Heater specs');
+    htSec.appendChild(propRowSelect('Type',['Line heater','Indirect fired','E-O treater','Direct fired'],'props-htype',node.props.type||'Line heater'));
+    const r1=document.createElement('div');r1.className='prop-2col';
+    r1.appendChild(propRow('Inlet T (°F)','number','props-intT',node.props.inletT||60));
+    r1.appendChild(propRow('Outlet T (°F)','number','props-outT',node.props.outletT||120));
+    htSec.appendChild(r1);
+    const r2=document.createElement('div');r2.className='prop-2col';
+    r2.appendChild(propRow('Heat duty (MMBtu/hr)','number','props-duty',node.props.duty||0.5));
+    r2.appendChild(propRow('Fuel gas (MCF/day)','number','props-fuel',node.props.fuelGas||0.1));
+    htSec.appendChild(r2);
+    body.appendChild(htSec);
+  }
+
+  // Composition section (wellhead nodes)
+  if(node.type==='wellhead'||node.comp!==null){
+    const compSec=propSection('Fluid composition (mol %)');
+    const comp=node.comp||(node.comp=new Array(NC).fill(0));
+    const tbl=document.createElement('table');
+    tbl.className='comp-table';
+    tbl.innerHTML='<thead><tr><th>Component</th><th>mol %</th></tr></thead>';
+    const tbody=document.createElement('tbody');
+    COMP.forEach((c,i)=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td style="font-family:var(--mono);color:var(--text2)">${c.n}</td><td><input type="number" id="comp-${i}" value="${comp[i]||0}" min="0" max="100" step="0.01" oninput="updateCompTotal()"></td>`;
+      tbody.appendChild(tr);
+    });
+    const totRow=document.createElement('tr');
+    totRow.className='comp-total-row';
+    totRow.innerHTML='<td>Total</td><td id="comp-total-display" style="font-family:var(--mono)">0.000%</td>';
+    tbody.appendChild(totRow);
+    tbl.appendChild(tbody);
+    compSec.appendChild(tbl);
+    const normBtn=document.createElement('button');
+    normBtn.className='prop-btn';normBtn.style.marginTop='6px';normBtn.textContent='Normalize to 100%';
+    normBtn.onclick=normalizeComp;
+    compSec.appendChild(normBtn);
+    body.appendChild(compSec);
+    updateCompTotal();
+  }
+
+  // Save/delete buttons
+  const actSec=document.createElement('div');
+  actSec.style.marginTop='1rem';
+  const saveBtn=document.createElement('button');
+  saveBtn.className='prop-btn primary';saveBtn.textContent='Save changes';
+  saveBtn.onclick=()=>saveNodeProps(node.id);
+  const delBtn=document.createElement('button');
+  delBtn.className='prop-btn danger';delBtn.textContent='Delete equipment';
+  delBtn.onclick=deleteSelected;
+  actSec.appendChild(saveBtn);actSec.appendChild(delBtn);
+  body.appendChild(actSec);
+}
+
+function propSection(title){
+  const sec=document.createElement('div');
+  sec.className='prop-section';
+  const t=document.createElement('div');
+  t.className='prop-section-title';t.textContent=title;
+  sec.appendChild(t);
+  return sec;
+}
+function propRow(label,type,id,value){
+  const div=document.createElement('div');div.className='prop-row';
+  div.innerHTML=`<label>${label}</label><input type="${type}" id="${id}" value="${value}">`;
+  return div;
+}
+function propRowSelect(label,options,id,value){
+  const div=document.createElement('div');div.className='prop-row';
+  div.innerHTML=`<label>${label}</label><select id="${id}">${options.map(o=>`<option ${o===value?'selected':''}>${o}</option>`).join('')}</select>`;
+  return div;
+}
+
+function updateCompTotal(){
+  let total=0;
+  for(let i=0;i<NC;i++){const el=document.getElementById('comp-'+i);if(el)total+=parseFloat(el.value)||0;}
+  const disp=document.getElementById('comp-total-display');
+  if(disp){disp.textContent=total.toFixed(3)+'%';disp.style.color=Math.abs(total-100)>0.5?'var(--amber)':'var(--green)';}
+}
+function normalizeComp(){
+  let total=0;const vals=[];
+  for(let i=0;i<NC;i++){const el=document.getElementById('comp-'+i);const v=parseFloat(el?.value)||0;vals.push(v);total+=v;}
+  if(!total)return;
+  for(let i=0;i<NC;i++){const el=document.getElementById('comp-'+i);if(el)el.value=(vals[i]/total*100).toFixed(4);}
+  updateCompTotal();
+}
+
+function saveNodeProps(nodeId){
+  const node=getNode(nodeId);if(!node)return;
+  const def=EQ_DEFS[node.type];
+  const tag=document.getElementById('props-tag');if(tag)node.props.tag=tag.value;
+  const temp=document.getElementById('props-temp');if(temp)node.props.temp=parseFloat(temp.value)||0;
+  const press=document.getElementById('props-press');if(press)node.props.pressure=parseFloat(press.value)||0;
+  ['oil','gas','water'].forEach(k=>{const el=document.getElementById('props-'+k);if(el)node.props[k+'Rate']=parseFloat(el.value)||0;});
+  ['eff','pilot','flow','comp','sp','dp','cyl','diam','ht','duty','fuel','intT','outT','stk','model','mfr'].forEach(k=>{
+    const el=document.getElementById('props-'+k);if(el)node.props[{eff:'destroyEff',pilot:'pilotGas',flow:'designFlow',comp:'compression',sp:'suctionP',dp:'dischargeP',cyl:'cylinders',diam:'diameter',ht:'height',duty:'duty',fuel:'fuelGas',intT:'inletT',outT:'outletT',stk:'stackHeight',model:'model',mfr:'manufacturer'}[k]||k]=isNaN(el.value)?el.value:parseFloat(el.value)||0;
+  });
+  ['orient','rooftype','ctype','htype'].forEach(k=>{
+    const el=document.getElementById('props-'+k);
+    if(el)node.props[{orient:'orientation',rooftype:'roofType',ctype:'type',htype:'type'}[k]||k]=el.value;
+  });
+  // Save composition
+  if(node.comp!==null||node.type==='wellhead'){
+    node.comp=node.comp||new Array(NC).fill(0);
+    for(let i=0;i<NC;i++){const el=document.getElementById('comp-'+i);if(el)node.comp[i]=parseFloat(el.value)||0;}
+  }
+  document.getElementById('prop-sub').textContent=node.props.tag||'';
+  saveData();renderPFD();selectNode(nodeId);
+}
+
+// ═══════════════════════════════════════════════════════════
+// STREAM TABLE
+// ═══════════════════════════════════════════════════════════
+function toggleStreamTable(){
+  streamTableVisible=!streamTableVisible;
+  const sec=document.getElementById('stream-table-section');
+  const noSel=document.getElementById('props-no-sel');
+  const content=document.getElementById('props-content');
+  if(streamTableVisible){
+    sec.classList.remove('hidden');noSel.classList.add('hidden');content.classList.add('hidden');
+    updateStreamTable();
+  } else {
+    sec.classList.add('hidden');
+    if(!selectedNodeId)noSel.classList.remove('hidden');
+    else content.classList.remove('hidden');
+  }
+}
+function updateStreamTable(){
+  const fac=getActiveFac();
+  const tbody=document.getElementById('stream-table-body');
+  if(!fac||!tbody)return;
+  tbody.innerHTML=fac.streams.map(s=>{
+    const fn=getNode(s.fromNode),tn=getNode(s.toNode);
+    const fromLabel=fn?`${EQ_DEFS[fn.type].label} (${fn.props.tag||''})`:s.fromNode;
+    const toLabel=tn?`${EQ_DEFS[tn.type].label} (${tn.props.tag||''})`:s.toNode;
+    const T=fn?fn.props.temp||'—':'—';
+    const P=fn?fn.props.pressure||'—':'—';
+    const calc=s.calc;
+    return `<tr>
+      <td>${s.label}</td>
+      <td>${fromLabel}</td>
+      <td>${toLabel}</td>
+      <td>${T}</td>
+      <td>${P}</td>
+      <td>${calc?'<span class="badge badge-green">Calc</span>':'<span class="badge" style="background:rgba(90,95,112,0.2);color:var(--text3)">Pending</span>'}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+// FLASHPOINT CALCULATION ENGINE v2.0
+// Methodology: Peng-Robinson EOS (1976), API 19D (2012),
+// API 4697 (2003), EPA AP-42 Ch.7 (tanks), EPA-453/R-95-017
+// ═══════════════════════════════════════════════════════════
+
+// Binary interaction parameters (literature values, Nikos & Moshfeghian 1994)
+function getBIP(i,j){
+  const t={
+    '0-3':0.025,'0-4':0.010,'0-5':0.090,'0-6':0.095,'0-7':0.095,
+    '1-2':0.120,'1-3':0.105,'1-4':0.130,'1-5':0.125,'1-6':0.120,'1-7':0.120,
+    '2-3':0.070,'2-4':0.085,'2-5':0.080,'2-6':0.075,'2-7':0.075,
+  };
+  return t[[Math.min(i,j),Math.max(i,j)].join('-')]||0;
+}
+function rankine(tf){return tf+459.67;}
+
+// PR-EOS alpha function (Peng & Robinson 1976, Eq.17)
+function alphaFn(T,c){
+  const Tr=T/c.Tc;
+  const m=0.37464+1.54226*c.w-0.26992*c.w*c.w;
+  return (1+m*(1-Math.sqrt(Tr)))*(1+m*(1-Math.sqrt(Tr)));
+}
+
+// Mixture A, B parameters and component ai, bi
+function prAB(T,P,z){
+  const ai=COMP.map(c=>0.45724*R*R*c.Tc*c.Tc/c.Pc*alphaFn(T,c));
+  const bi=COMP.map(c=>0.07780*R*c.Tc/c.Pc);
+  let am=0,bm=0;
+  for(let i=0;i<NC;i++) for(let j=0;j<NC;j++) am+=z[i]*z[j]*Math.sqrt(ai[i]*ai[j])*(1-getBIP(i,j));
+  for(let i=0;i<NC;i++) bm+=z[i]*bi[i];
+  return{A:am*P/(R*T)/(R*T), B:bm*P/(R*T), ai, bi, am, bm};
+}
+
+// Cubic Z-factor solver
+function solveCubic(A,B){
+  const c2=B-1, c1=A-3*B*B-2*B, c0=B*B*B+B*B-A*B;
+  const p=c1-c2*c2/3, q=2*c2*c2*c2/27-c1*c2/3+c0;
+  const D=q*q/4+p*p*p/27;
+  let roots=[];
+  if(D>0){
+    const u=Math.cbrt(-q/2+Math.sqrt(D)), v=Math.cbrt(-q/2-Math.sqrt(D));
+    roots=[u+v-c2/3];
+  } else {
+    const r=Math.sqrt(Math.max(0,-p*p*p/27));
+    const th=Math.acos(Math.max(-1,Math.min(1,-q/(2*r))));
+    const m=2*Math.cbrt(r);
+    roots=[m*Math.cos(th/3)-c2/3, m*Math.cos((th+2*Math.PI)/3)-c2/3, m*Math.cos((th+4*Math.PI)/3)-c2/3];
+  }
+  const valid=roots.filter(r=>r>B+1e-9);
+  if(!valid.length){const mx=Math.max(...roots);return{Zv:mx,Zl:mx};}
+  return{Zv:Math.max(...valid), Zl:Math.min(...valid)};
+}
+
+// Fugacity coefficients (departure function form)
+function fugc(Z,A,B,ai,bi,am,bm,z,T,P){
+  return COMP.map((_,i)=>{
+    let s=0; for(let j=0;j<NC;j++) s+=z[j]*Math.sqrt(ai[i]*ai[j])*(1-getBIP(i,j));
+    return bi[i]/bm*(Z-1)-Math.log(Z-B)-A/(2*Math.sqrt(2)*B)*(2*s/am-bi[i]/bm)*Math.log((Z+(1+Math.sqrt(2))*B)/(Z+(1-Math.sqrt(2))*B));
+  });
+}
+
+// Wilson K-value initialization (Wilson 1969)
+function wilsonK(T,P){return COMP.map(c=>(c.Pc/P)*Math.exp(5.373*(1+c.w)*(1-c.Tc/T)));}
+
+// Rachford-Rice solver
+function rrSolve(K,z){
+  const f=b=>z.reduce((s,zi,i)=>s+zi*(K[i]-1)/(1+b*(K[i]-1)),0);
+  let lo=1e-7, hi=1-1e-7, b=0.5;
+  try{if(f(lo)*f(hi)>0) return f(lo)<0?0:1;}catch(e){return 0.5;}
+  for(let it=0;it<100;it++){const fb=f(b);if(Math.abs(fb)<1e-10)break;if(fb>0)lo=b;else hi=b;b=(lo+hi)/2;}
+  return Math.max(0,Math.min(1,b));
+}
+
+// Two-phase flash (successive substitution)
+function flashCalc(z,Tf,P){
+  const T=rankine(Tf);
+  let K=wilsonK(T,P), beta=rrSolve(K,z), iter=0;
+  for(;iter<60;iter++){
+    const y=z.map((zi,i)=>zi*K[i]/(1+beta*(K[i]-1)));
+    const x=z.map((zi,i)=>zi/(1+beta*(K[i]-1)));
+    const sY=y.reduce((a,b)=>a+b,0)||1, sX=x.reduce((a,b)=>a+b,0)||1;
+    const yn=y.map(v=>v/sY), xn=x.map(v=>v/sX);
+    const {A:Av,B:Bv,ai:aiV,bi:biV,am:amV,bm:bmV}=prAB(T,P,yn);
+    const {A:Al,B:Bl,ai:aiL,bi:biL,am:amL,bm:bmL}=prAB(T,P,xn);
+    const {Zv,Zl}=solveCubic(Math.max(Av,Al),Math.max(Bv,Bl));
+    const lnFV=fugc(Zv,Av,Bv,aiV,biV,amV,bmV,yn,T,P);
+    const lnFL=fugc(Zl,Al,Bl,aiL,biL,amL,bmL,xn,T,P);
+    const Kn=lnFL.map((fl,i)=>K[i]*Math.exp(fl-lnFV[i]));
+    const err=Kn.reduce((s,Kni,i)=>s+Math.abs(Math.log(Kni/K[i])),0);
+    K=Kn; beta=rrSolve(K,z);
+    if(err<1e-7) break;
+  }
+  const y=z.map((zi,i)=>zi*K[i]/(1+beta*(K[i]-1)));
+  const x=z.map((zi,i)=>zi/(1+beta*(K[i]-1)));
+  const sY=y.reduce((a,b)=>a+b,0)||1, sX=x.reduce((a,b)=>a+b,0)||1;
+  const{A,B,ai,bi,am,bm}=prAB(T,P,y.map(v=>v/sY));
+  const{Zv,Zl}=solveCubic(A,B);
+  return{beta, y:y.map(v=>v/sY), x:x.map(v=>v/sX), K, iter, Zv, Zl};
+}
+
+// Bubble point (successive substitution on Σ Ki*zi = 1)
+function bubblePoint(z,Tf){
+  const T=rankine(Tf);
+  let P=200, converged=false, logs=[];
+  for(let it=0;it<120;it++){
+    const{A,B,ai,bi,am,bm}=prAB(T,P,z);
+    const{Zv,Zl}=solveCubic(A,B);
+    const lnFL=fugc(Zl,A,B,ai,bi,am,bm,z,T,P);
+    const lnFV=fugc(Zv,A,B,ai,bi,am,bm,z,T,P);
+    const K=lnFL.map((fl,i)=>Math.exp(fl-lnFV[i]));
+    const sumKz=K.reduce((s,Ki,i)=>s+Ki*z[i],0);
+    if(it%20===0) logs.push(`iter ${it}: Pbp=${P.toFixed(2)} psia  Σ(Kᵢzᵢ)=${sumKz.toFixed(6)}`);
+    if(Math.abs(sumKz-1)<1e-6){converged=true;break;}
+    P=Math.max(1,Math.min(10000,P*sumKz));
+  }
+  logs.push(converged?`✓ Converged. Bubble point = ${P.toFixed(2)} psia`:`⚠ Did not converge.`);
+  return{Pbp:P, converged, logs};
+}
+
+// ─── MASS-BASED EMISSION CALCULATIONS ────────────────────────────────────────
+// Ref: API 4697 Table 1, EPA Subpart OOOOb, 40 CFR Part 98 Subpart W
+const SCF_PER_LBMOL=379.4; // scf/lb-mol at 60°F, 14.696 psia
+
+// Flash emissions from a separator stage (lb/hr per component)
+// oilBBLD: oil throughput BBL/day
+function flashEmissions(flashResult, oilBBLD, gorScfBbl){
+  const gasScfDay=oilBBLD*gorScfBbl;
+  const gasScfHr=gasScfDay/24;
+  const{beta,y}=flashResult;
+  return COMP.map((c,i)=>{
+    const yi=y[i];
+    const nLbmolHr=gasScfHr*yi/SCF_PER_LBMOL;
+    return nLbmolHr*c.MW; // lb/hr
+  });
+}
+
+// API 19D / AP-42 Ch.7 tank breathing losses
+// Ref: API 19D Section 5, AP-42 Chapter 7.1 (fixed roof tanks)
+function tankBreathingLoss(tankProps, liquidComp, ambientT){
+  const D=tankProps.diameter||15;  // ft
+  const H=tankProps.height||20;    // ft
+  const P=tankProps.pressure||14.65; // psia (near atmospheric)
+  const T=tankProps.temp||75;       // °F liquid temp
+  const Ta=ambientT||75;            // °F ambient
+  // Vapor pressure of liquid mixture (Raoult's law approximation)
+  // Using Antoine-type correlation via PR-EOS vapor pressure per component
+  const Tr=rankine(T);
+  // Standing vapor pressure estimate (API 19D Eq. 5-1)
+  // Pv = Σ(xi * Pvi) where Pvi estimated from Wilson correlation at tank T
+  const lc=liquidComp||(new Array(NC).fill(1/NC));
+  const lcTot=lc.reduce((a,b)=>a+b,0)||1;
+  const lcN=lc.map(v=>v/lcTot);
+  // Component vapor pressures via Clausius-Clapeyron approximation
+  const Pvi=COMP.map(c=>{
+    const Tbr=c.Tc*0.7; // approx normal boiling point in Rankine
+    return c.Pc*Math.exp(5.373*(1+c.w)*(1-c.Tc/Tr));
+  });
+  const Pv=lcN.reduce((s,xi,i)=>s+xi*Pvi[i],0);
+  const Pva=Math.min(Pv, P*0.95); // can't exceed tank pressure
+  // Standing tank breathing loss (API 19D Eq. 5-2, fixed roof)
+  // LS = 0.0018 * D^1.73 * H^0.51 * ΔTv^0.45 * FP * C * Ke * KS (lb/day)
+  const dT=Math.abs(T-Ta)+5; // daily temp swing estimate
+  const LS=0.0018*Math.pow(D,1.73)*Math.pow(H,0.51)*Math.pow(dT,0.45);
+  // Working loss (API 19D Eq. 5-3)
+  // LW = 0.0001 * Pv * C * N * D^2 * Ke (lb/bbl)
+  const LW_perBbl=0.0001*Pva;
+  return{
+    breathingLossLbDay:LS,
+    workingLossLbBbl:LW_perBbl,
+    vaporPressurePsia:Pva,
+    methodology:'API 19D (2012) Eq. 5-2 fixed roof breathing loss; Eq. 5-3 working loss'
+  };
+}
+
+// Combustor/flare destruction efficiency applied to inlet stream
+// Ref: 40 CFR 63.769, EPA Method 22
+function controlledEmissions(inletLbHrArr, destroyEff){
+  const eff=(destroyEff||98)/100;
+  return inletLbHrArr.map(lb=>lb*(1-eff));
+}
+
+// Compressor rod packing emissions
+// Ref: EPA AP-42 Section 3.2, Table 3.2-3 (reciprocating compressors)
+// Average rod packing leak rate: 0.15 MCF/day/cylinder (EPA default)
+function compressorRodPackingEmissions(compProps, inletComp){
+  if(compProps.rodPacking!=='Yes') return null;
+  const cylinders=compProps.cylinders||2;
+  const leakRateMCFDay=0.15*cylinders; // EPA AP-42 default
+  const leakScfHr=leakRateMCFDay*1000/24;
+  const z=inletComp||(new Array(NC).fill(0));
+  const tot=z.reduce((a,b)=>a+b,0)||1;
+  const zn=z.map(v=>v/tot);
+  return COMP.map((c,i)=>{
+    const nLbmolHr=leakScfHr*zn[i]/SCF_PER_LBMOL;
+    return nLbmolHr*c.MW;
+  });
+}
+
+// ─── TOPOLOGICAL SORT & FULL FACILITY CALCULATION ────────────────────────────
+function topoSort(nodes, streams){
+  const inDegree={};
+  const adj={};
+  nodes.forEach(n=>{inDegree[n.id]=0; adj[n.id]=[];});
+  streams.forEach(s=>{
+    if(adj[s.fromNode]) adj[s.fromNode].push(s.toNode);
+    if(inDegree[s.toNode]!==undefined) inDegree[s.toNode]++;
+  });
+  const queue=nodes.filter(n=>inDegree[n.id]===0).map(n=>n.id);
+  const order=[];
+  while(queue.length){
+    const id=queue.shift(); order.push(id);
+    (adj[id]||[]).forEach(nid=>{ if(--inDegree[nid]===0) queue.push(nid); });
+  }
+  return order;
+}
+
+// Main calculation engine — walks the PFD topology
+function runAllCalcs(){
+  const fac=getActiveFac();
+  if(!fac){alert('No active facility.');return;}
+
+  const wellheads=fac.nodes.filter(n=>n.type==='wellhead');
+  if(!wellheads.length){alert('Add a Wellhead node with a fluid composition to run calculations.');return;}
+
+  const wh=wellheads[0];
+  if(!wh.comp||wh.comp.every(v=>v===0)){alert('Enter fluid composition at the Wellhead node first, then save.');return;}
+
+  // Initialize result store
+  fac.calcResults={
+    timestamp:new Date().toISOString(),
+    facilityName:fac.name,
+    streams:{},
+    nodes:{},
+    emissionSummary:{},
+    methodology:[
+      'Thermodynamic engine: Peng-Robinson EOS (Peng & Robinson 1976)',
+      'Flash calculation: Rachford-Rice successive substitution (Rachford & Rice 1952)',
+      'K-value initialization: Wilson correlation (Wilson 1969)',
+      'Binary interaction parameters: Nikos & Moshfeghian (1994)',
+      'Tank losses: API 19D (2012) Sections 5-2 and 5-3',
+      'Compressor rod packing: EPA AP-42 Section 3.2 (2000)',
+      'Standard conditions: 60°F, 14.696 psia (379.4 scf/lb-mol)',
+    ]
+  };
+
+  // Walk topology
+  const order=topoSort(fac.nodes, fac.streams);
+  const nodeComp={}; // current liquid composition flowing into each node
+  const nodeLbHr={};  // emission lb/hr array per node
+
+  // Seed from wellhead
+  const tot=wh.comp.reduce((a,b)=>a+b,0)||1;
+  nodeComp[wh.id]=wh.comp.map(v=>v/tot);
+
+  const oilRate=wh.props.oilRate||40;   // BBL/day
+  const gasRate=wh.props.gasRate||28;   // MCF/day
+  const gor=oilRate>0?(gasRate*1000/oilRate):500; // scf/bbl
+
+  let totalVOCLbHr=0, totalCH4LbHr=0, totalH2SLbHr=0, totalHAPLbHr=0;
+  let stageLog=[];
+
+  order.forEach(nid=>{
+    const node=fac.nodes.find(n=>n.id===nid);
+    if(!node) return;
+
+    // Find incoming streams — use their liquid comp if available
+    const inStreams=fac.streams.filter(s=>s.toNode===nid);
+    if(inStreams.length>0 && !nodeComp[nid]){
+      // Take composition from first upstream node
+      const upstream=nodeComp[inStreams[0].fromNode];
+      if(upstream) nodeComp[nid]=upstream;
+    }
+
+    const z=nodeComp[nid]||(new Array(NC).fill(1/NC));
+    const T=node.props.temp||80;
+    const P=node.props.pressure||14.7;
+
+    if(['fwko','separator','gunbarrel','stocktank','tank'].includes(node.type)){
+      // Flash calculation
+      const res=flashCalc(z,T,P);
+      node.comp=res.x; // liquid exits downstream
+      nodeComp[nid+'_out']=res.x;
+
+      // Propagate liquid to downstream nodes via outlet stream
+      const outStream=fac.streams.find(s=>s.fromNode===nid&&s.fromPort==='outlet');
+      if(outStream) nodeComp[outStream.toNode]=res.x;
+
+      // Gas stream gets vapor comp
+      const gasStream=fac.streams.find(s=>s.fromNode===nid&&(s.fromPort==='gasout'||s.fromPort==='vent'));
+      if(gasStream){
+        nodeComp[gasStream.toNode+'_gascomp']=res.y;
+      }
+
+      // Emission rates from this stage
+      const emLbHr=flashEmissions(res, oilRate, gor);
+      nodeLbHr[nid]=emLbHr;
+
+      // Update stream calc data
+      const stream=fac.streams.find(s=>s.toNode===nid);
+      if(stream) stream.calc={beta:res.beta, vapY:res.y, liqX:res.x, T, P, iter:res.iter, Zv:res.Zv, Zl:res.Zl};
+
+      const stageVOC=emLbHr.reduce((s,lb,i)=>s+(COMP[i].isVOC?lb:0),0);
+      const stageCH4=emLbHr[3];
+      const stageH2S=emLbHr[2];
+      stageLog.push({nodeId:nid, tag:node.props.tag, type:node.type, T, P, beta:res.beta, emLbHr, vocLbHr:stageVOC, ch4LbHr:stageCH4, h2sLbHr:stageH2S});
+
+      totalVOCLbHr+=stageVOC;
+      totalCH4LbHr+=stageCH4;
+      totalH2SLbHr+=stageH2S;
+      totalHAPLbHr+=emLbHr.reduce((s,lb,i)=>s+(COMP[i].isHAP?lb:0),0);
+
+      // Tank-specific breathing losses
+      if(['tank','stocktank'].includes(node.type)){
+        const tankLoss=tankBreathingLoss(node.props, z, 75);
+        const breathLbHr=tankLoss.breathingLossLbDay/24;
+        fac.calcResults.nodes[nid]={flash:res, emLbHr, tankBreathing:tankLoss, breathLbHr};
+      } else {
+        fac.calcResults.nodes[nid]={flash:res, emLbHr};
+      }
+
+    } else if(node.type==='combustor'||node.type==='flare'){
+      // Apply destruction efficiency to upstream gas stream emissions
+      const upstreamGasNodeId=fac.streams.find(s=>s.toNode===nid)?.fromNode;
+      if(upstreamGasNodeId && nodeLbHr[upstreamGasNodeId]){
+        const controlled=controlledEmissions(nodeLbHr[upstreamGasNodeId], node.props.destroyEff||98);
+        nodeLbHr[nid]=controlled;
+        fac.calcResults.nodes[nid]={destroyEff:node.props.destroyEff||98, inletLbHr:nodeLbHr[upstreamGasNodeId], outletLbHr:controlled};
+        // Subtract controlled portion from totals
+        const reduction=nodeLbHr[upstreamGasNodeId].map((lb,i)=>lb-controlled[i]);
+        totalVOCLbHr-=reduction.reduce((s,lb,i)=>s+(COMP[i].isVOC?lb:0),0);
+        totalCH4LbHr-=reduction[3];
+        totalH2SLbHr-=reduction[2];
+        totalHAPLbHr-=reduction.reduce((s,lb,i)=>s+(COMP[i].isHAP?lb:0),0);
+      }
+
+    } else if(node.type==='compressor'){
+      // Rod packing emissions
+      const upComp=nodeComp[nid]||(new Array(NC).fill(1/NC));
+      const rodEm=compressorRodPackingEmissions(node.props, upComp);
+      if(rodEm){
+        nodeLbHr[nid]=rodEm;
+        fac.calcResults.nodes[nid]={rodPackingLbHr:rodEm};
+        totalVOCLbHr+=rodEm.reduce((s,lb,i)=>s+(COMP[i].isVOC?lb:0),0);
+        totalCH4LbHr+=rodEm[3];
+        totalH2SLbHr+=rodEm[2];
+      }
+    }
+  });
+
+  const hrsYr=8760;
+  fac.calcResults.emissionSummary={
+    vocLbHr:totalVOCLbHr, vocTpy:totalVOCLbHr*hrsYr/2000,
+    ch4LbHr:totalCH4LbHr, ch4Tpy:totalCH4LbHr*hrsYr/2000,
+    h2sLbHr:totalH2SLbHr, h2sTpy:totalH2SLbHr*hrsYr/2000,
+    hapLbHr:totalHAPLbHr, hapTpy:totalHAPLbHr*hrsYr/2000,
+    oilRate, gasRate, gor, stageLog,
+    oooobApplicable: totalVOCLbHr*hrsYr/2000>3||totalCH4LbHr*hrsYr/2000>3,
+  };
+
+  saveData();
+  renderStreamsSVG();
+  updateStreamTable();
+  showEmissionResults(fac.calcResults.emissionSummary);
+}
+
+// ─── EMISSION RESULTS PANEL ───────────────────────────────────────────────────
+function showEmissionResults(summary){
+  const noSel=document.getElementById('props-no-sel');
+  const content=document.getElementById('props-content');
+  const streamSec=document.getElementById('stream-table-section');
+  noSel.classList.add('hidden');
+  streamSec.classList.add('hidden');
+  content.classList.remove('hidden');
+
+  document.getElementById('prop-title').textContent='Emission results';
+  document.getElementById('prop-sub').textContent=new Date().toLocaleString();
+  document.getElementById('prop-eq-badge').innerHTML='<span class="badge badge-green">CALCULATED</span>';
+
+  const body=document.getElementById('props-body');
+  const fmt=(n,d=3)=>isNaN(n)?'—':Number(n).toFixed(d);
+  const thr=(val,limit)=>val>=limit?'badge-red':val>=limit*0.75?'badge-amber':'badge-green';
+
+  body.innerHTML=`
+    <div class="prop-section">
+      <div class="prop-section-title">Emission summary — uncontrolled basis</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:1rem">
+        <div class="res-card"><div class="res-label">VOC</div><div class="res-val">${fmt(summary.vocLbHr)} <span class="res-unit">lb/hr</span></div><div style="font-size:10px;color:var(--text3);font-family:var(--mono)">${fmt(summary.vocTpy)} TPY</div></div>
+        <div class="res-card"><div class="res-label">CH₄</div><div class="res-val">${fmt(summary.ch4LbHr)} <span class="res-unit">lb/hr</span></div><div style="font-size:10px;color:var(--text3);font-family:var(--mono)">${fmt(summary.ch4Tpy)} TPY</div></div>
+        <div class="res-card"><div class="res-label">H₂S</div><div class="res-val" style="${summary.h2sLbHr>0.1?'color:var(--amber)':''}">${fmt(summary.h2sLbHr)} <span class="res-unit">lb/hr</span></div><div style="font-size:10px;color:var(--text3);font-family:var(--mono)">${fmt(summary.h2sTpy)} TPY</div></div>
+        <div class="res-card"><div class="res-label">HAPs</div><div class="res-val">${fmt(summary.hapLbHr)} <span class="res-unit">lb/hr</span></div><div style="font-size:10px;color:var(--text3);font-family:var(--mono)">${fmt(summary.hapTpy)} TPY</div></div>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">OOOOb threshold check</div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <thead><tr>
+          <th style="text-align:left;padding:4px 6px;font-size:9px;color:var(--text3);font-family:var(--mono);border-bottom:1px solid var(--border)">POLLUTANT</th>
+          <th style="text-align:right;padding:4px 6px;font-size:9px;color:var(--text3);font-family:var(--mono);border-bottom:1px solid var(--border)">CALC TPY</th>
+          <th style="text-align:right;padding:4px 6px;font-size:9px;color:var(--text3);font-family:var(--mono);border-bottom:1px solid var(--border)">LIMIT</th>
+          <th style="padding:4px 6px;font-size:9px;color:var(--text3);font-family:var(--mono);border-bottom:1px solid var(--border)">STATUS</th>
+        </tr></thead>
+        <tbody>
+          ${[
+            {n:'VOC',v:summary.vocTpy,lim:100},
+            {n:'CH₄',v:summary.ch4Tpy,lim:100},
+            {n:'H₂S (HAP)',v:summary.h2sTpy,lim:10},
+            {n:'Total HAPs',v:summary.hapTpy,lim:25},
+          ].map(r=>`<tr>
+            <td style="padding:4px 6px;font-family:var(--mono);color:var(--text2)">${r.n}</td>
+            <td style="padding:4px 6px;font-family:var(--mono);text-align:right;color:${r.v>=r.lim?'var(--red)':r.v>=r.lim*0.75?'var(--amber)':'var(--text)'}">${fmt(r.v)}</td>
+            <td style="padding:4px 6px;font-family:var(--mono);text-align:right;color:var(--text3)">${r.lim}</td>
+            <td style="padding:4px 6px"><span class="badge ${thr(r.v,r.lim)}">${r.v>=r.lim?'EXCEEDS':r.v>=r.lim*0.75?'APPROACHING':'BELOW'}</span></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">Stage breakdown</div>
+      ${(summary.stageLog||[]).map(s=>`
+        <div style="border:1px solid var(--border);border-radius:5px;padding:.6rem;margin-bottom:.5rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem">
+            <span style="font-size:11px;font-weight:500">${s.tag} <span style="color:var(--text3);font-size:10px">(${s.type})</span></span>
+            <span style="font-size:10px;font-family:var(--mono);color:var(--text3)">${s.T}°F · ${s.P} psia</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;font-size:10px;font-family:var(--mono)">
+            <div><span style="color:var(--text3)">β=</span>${s.beta.toFixed(4)}</div>
+            <div><span style="color:var(--text3)">VOC=</span>${fmt(s.vocLbHr)} lb/hr</div>
+            <div><span style="color:var(--text3)">H₂S=</span><span style="${s.h2sLbHr>0.01?'color:var(--amber)':''}">${fmt(s.h2sLbHr)} lb/hr</span></div>
+          </div>
+        </div>`).join('')}
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">Calculation basis</div>
+      <div style="font-size:10px;font-family:var(--mono);color:var(--text3);line-height:1.7">
+        Oil: ${summary.oilRate} BBL/day · Gas: ${summary.gasRate} MCF/day · GOR: ${fmt(summary.gor,0)} scf/bbl<br>
+        Basis: 8,760 hr/yr · Uncontrolled PTE
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">Methodology references</div>
+      <div style="font-size:10px;font-family:var(--mono);color:var(--text3);line-height:1.8">
+        • Peng-Robinson EOS (1976) — Z-factor & fugacity<br>
+        • Rachford-Rice (1952) — flash vapor fraction<br>
+        • Wilson correlation (1969) — K-value init<br>
+        • API 19D (2012) — tank breathing/working losses<br>
+        • EPA AP-42 §3.2 — compressor rod packing<br>
+        • 40 CFR 63 Subpart OOOOb — emission thresholds
+      </div>
+    </div>
+    <button onclick="exportReport()" style="width:100%;padding:7px;font-size:12px;border-radius:4px;cursor:pointer;border:1px solid var(--green);background:var(--green-bg);color:var(--green);font-family:var(--sans);margin-top:.5rem">⬇ Export submittal report</button>
+  `;
+}
+
+// ─── REPORT EXPORT ────────────────────────────────────────────────────────────
+function exportReport(){
+  const fac=getActiveFac();
+  if(!fac||!fac.calcResults){alert('Run calculations first.');return;}
+  const r=fac.calcResults;
+  const s=r.emissionSummary;
+  const fmt=(n,d=3)=>isNaN(n)?'—':Number(n).toFixed(d);
+  const date=new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <title>Emission Calculation Report — ${fac.name}</title>
+  <style>
+    body{font-family:'Times New Roman',serif;font-size:12pt;margin:1in;color:#000;line-height:1.4}
+    h1{font-size:16pt;text-align:center;margin-bottom:4px}
+    h2{font-size:13pt;margin-top:24px;margin-bottom:8px;border-bottom:1px solid #000;padding-bottom:4px}
+    h3{font-size:12pt;margin-top:16px;margin-bottom:6px}
+    table{width:100%;border-collapse:collapse;margin:12px 0;font-size:11pt}
+    th{background:#e8e8e8;border:1px solid #999;padding:6px 10px;text-align:left}
+    td{border:1px solid #ccc;padding:5px 10px}
+    .center{text-align:center}
+    .right{text-align:right}
+    .sub{font-size:10pt;color:#555}
+    .warn{background:#fff3cd}
+    .exceed{background:#f8d7da}
+    .footer{font-size:9pt;color:#777;margin-top:40px;border-top:1px solid #ccc;padding-top:8px}
+    @page{margin:1in}
+  </style></head><body>
+  <h1>Emission Calculation Report</h1>
+  <h1 style="font-size:13pt;font-weight:normal">${fac.name}</h1>
+  <p class="center sub">Prepared: ${date} &nbsp;|&nbsp; FlashPoint EOS Emissions Tool v2.0 &nbsp;|&nbsp; Basis: 40 CFR Part 60 Subpart OOOOb</p>
+  <h2>1. Facility Information</h2>
+  <table>
+    <tr><th>Facility Name</th><td>${fac.name}</td><th>Field / Area</th><td>${fac.field||'—'}</td></tr>
+    <tr><th>State</th><td>${fac.state||'—'}</td><th>Facility Type</th><td>${fac.type||'—'}</td></tr>
+    <tr><th>OOOOb Applicable</th><td>${fac.oooob||'—'}</td><th>Report Date</th><td>${date}</td></tr>
+    <tr><th>Notes</th><td colspan="3">${fac.notes||'—'}</td></tr>
+  </table>
+  <h2>2. Process Description & Equipment</h2>
+  <table>
+    <tr><th>Tag</th><th>Equipment Type</th><th>T (°F)</th><th>P (psia)</th><th>Notes</th></tr>
+    ${fac.nodes.map(n=>`<tr><td>${n.props.tag||'—'}</td><td>${EQ_DEFS[n.type]?.label||n.type}</td><td>${n.props.temp||'—'}</td><td>${n.props.pressure||'—'}</td><td>${n.props.notes||n.props.model||n.props.destination||'—'}</td></tr>`).join('')}
+  </table>
+  <h2>3. Fluid Composition</h2>
+  <p>Wellhead inlet composition used as basis for all flash calculations:</p>
+  <table>
+    <tr><th>Component</th><th>Mol %</th><th>MW (lb/lb-mol)</th><th>Classification</th></tr>
+    ${COMP.map((c,i)=>{const wh=fac.nodes.find(n=>n.type==='wellhead');const v=wh&&wh.comp?wh.comp[i]:0;return v>0?`<tr><td>${c.n}</td><td class="right">${Number(v).toFixed(4)}</td><td class="right">${c.MW}</td><td>${c.isHAP?'HAP':''}${c.isVOC?' VOC':''}</td></tr>`:''}).join('')}
+  </table>
+  <h2>4. Emission Calculation Results</h2>
+  <h3>4.1 Emission Summary</h3>
+  <table>
+    <tr><th>Pollutant</th><th>Emission Rate (lb/hr)</th><th>Annual Rate (TPY)</th><th>Major Source Threshold</th><th>Status</th></tr>
+    ${[
+      {n:'VOC (total)',v:s.vocLbHr,t:s.vocTpy,lim:100},
+      {n:'CH₄ (methane)',v:s.ch4LbHr,t:s.ch4Tpy,lim:100},
+      {n:'H₂S',v:s.h2sLbHr,t:s.h2sTpy,lim:10},
+      {n:'Total HAPs',v:s.hapLbHr,t:s.hapTpy,lim:25},
+    ].map(r=>`<tr class="${r.t>=r.lim?'exceed':r.t>=r.lim*0.75?'warn':''}">
+      <td>${r.n}</td><td class="right">${fmt(r.v)}</td><td class="right">${fmt(r.t)}</td><td class="right">${r.lim} TPY</td>
+      <td class="center">${r.t>=r.lim?'⚠ EXCEEDS':r.t>=r.lim*0.75?'APPROACHING':'Below'}</td>
+    </tr>`).join('')}
+  </table>
+  <h3>4.2 Stage-by-Stage Results</h3>
+  <table>
+    <tr><th>Stage</th><th>Tag</th><th>T (°F)</th><th>P (psia)</th><th>Vapor Fraction β</th><th>VOC (lb/hr)</th><th>CH₄ (lb/hr)</th><th>H₂S (lb/hr)</th></tr>
+    ${(s.stageLog||[]).map((st,i)=>`<tr><td>${i+1}</td><td>${st.tag}</td><td>${st.T}</td><td>${st.P}</td><td class="right">${st.beta.toFixed(4)}</td><td class="right">${fmt(st.vocLbHr)}</td><td class="right">${fmt(st.ch4LbHr)}</td><td class="right" ${st.h2sLbHr>0.01?'style="color:#c00;font-weight:bold"':''}>${fmt(st.h2sLbHr)}</td></tr>`).join('')}
+  </table>
+  <h2>5. Calculation Methodology</h2>
+  <p>Emissions were calculated using the FlashPoint EOS Emissions Tool, which employs the following industry-standard methodologies:</p>
+  <ul>${r.methodology.map(m=>`<li>${m}</li>`).join('')}</ul>
+  <p>Flash calculations were performed by solving the Peng-Robinson equation of state using the Rachford-Rice procedure for vapor-liquid equilibrium at each separation stage. K-values were initialized using the Wilson correlation and iterated to fugacity convergence. Mass-based emission rates were derived from vapor phase molar flows using ideal gas law at standard conditions (60°F, 14.696 psia; molar volume = 379.4 scf/lb-mol).</p>
+  <h2>6. Throughput Basis</h2>
+  <table>
+    <tr><th>Parameter</th><th>Value</th><th>Units</th></tr>
+    <tr><td>Oil throughput</td><td class="right">${s.oilRate}</td><td>BBL/day</td></tr>
+    <tr><td>Gas throughput</td><td class="right">${s.gasRate}</td><td>MCF/day</td></tr>
+    <tr><td>Gas-oil ratio (GOR)</td><td class="right">${fmt(s.gor,0)}</td><td>scf/bbl</td></tr>
+    <tr><td>Annual operating hours</td><td class="right">8,760</td><td>hr/yr</td></tr>
+    <tr><td>Emission basis</td><td colspan="2">Potential to Emit (PTE) — uncontrolled unless noted</td></tr>
+  </table>
+  <div class="footer">
+    FlashPoint EOS Emissions Tool v2.0 &nbsp;|&nbsp; Thermodynamic Engine: Peng-Robinson EOS (1976) &nbsp;|&nbsp; 
+    Generated: ${new Date().toISOString()} &nbsp;|&nbsp;
+    This report should be reviewed by a qualified engineer prior to regulatory submission.
+  </div>
+  </body></html>`;
+
+  const blob=new Blob([html],{type:'text/html'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`${fac.name.replace(/\s+/g,'_')}_emission_report_${new Date().toISOString().slice(0,10)}.html`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+loadData();
+renderFacSelect();
+document.addEventListener("DOMContentLoaded", function(){
+  renderPFD();
+  setTimeout(fitView, 200);
+});
+if(document.readyState !== "loading"){
+  renderPFD();
+  setTimeout(fitView, 200);
+}
+window.addEventListener("resize", function(){ renderStreamsSVG(); });
+</script>
+</body>
+</html>
